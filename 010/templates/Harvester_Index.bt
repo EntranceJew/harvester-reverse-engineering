@@ -1,0 +1,61 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+local uint64 max_path = 0;
+local string the_max_path;
+local uint64 least_garbage = 256;
+local string the_least_garbage;
+typedef struct {
+  char head[4];
+  local uint64 i = 0;
+  local ubyte read;
+  local ubyte did_null;
+  for(i = 0; i < 144; i++){
+    read = ReadUByte(FTell()+i);
+    if( read == 0 ){
+      if( i == 0 ){
+        did_null = true;
+        continue;
+      } else {
+        break;
+      }
+    }
+  }
+  FSkip(did_null ? 1 : 0);
+  //local uchar real_path[i-did_null] = ReadBytes(real_path, FTell(), i-did_null);
+  char path[i-did_null]; // 80 = limit? 128?
+  ubyte garbage[144-i-16]<bgcolor=cDkPurple>;
+  uint funny[4];
+
+  if(funny[1] != funny[3]){
+    Printf("funny mismatch: %s\n", path);
+  }
+
+  if(sizeof(path) > max_path){
+    max_path = sizeof(path);
+    the_max_path = path;
+  }
+  if(sizeof(garbage) < least_garbage){
+    least_garbage = sizeof(garbage);
+    the_least_garbage = path;
+  }
+  
+  if(head != "XFLE"){
+    Printf("different header: %s\n\tfor: %s", head, path);
+  }
+}INDEX_ENTRY <name=this.path,optimize=false>;
+
+while( !FEof() ){
+  INDEX_ENTRY index;
+}
+
+Printf("least garbage: %i (%s)\nmax path: %i (%s)\n", least_garbage, the_least_garbage, max_path, the_max_path);

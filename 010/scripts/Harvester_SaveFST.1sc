@@ -1,0 +1,167 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Script File
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+//   History: 
+//------------------------------------------------
+
+//local uint64 len = FST_FILE.pcm_length;
+//local ubyte buffer[len];
+//Memcpy(buffer, FST_FILE.PCM_DATA, len);
+
+//local uint nfile = FileNew("Hex", true);
+//WriteBytes(buffer, FTell(), len);
+
+LittleEndian();
+
+const uint INT_MAX = 2147483647;
+
+local int file_num = GetFileNum();
+local string file_name;
+RunTemplate("C:\\projects\\harvest_reverse_engineer\\tools\\templates\\Harvester_FST.bt", false);
+//struct FST_FILE;
+void Save_FST_PCM( FST_FILE &fst ){
+    local string out_file_name = Str("%s.s%ibit_le_mono_%iHz.PCM", GetFileName(), fst.sound_bits, fst.sound_rate);
+    local uint64 len = fst.vars.pcm_length;
+    local uint64 frames = fst.frames;
+    local uint64 duration = 0;
+    local uint64 i = 0;
+    local uint64 size = 0;
+    local uint64 where_am_i = GetFileNum();
+    local uint nfile = FileNew("Hex", true);
+    local ubyte bytes[INT_MAX];
+    FileSelect(where_am_i);
+    for(i=0; i < frames; i++){
+      size = fst.FST_FRAMES.frame_data[i].audio.size;
+      FileSelect(where_am_i);
+      // if we did this without going back and forth then we'd spend forever
+      // jerking off, otherwise we get a template error only for audio_data
+      Memcpy(bytes, fst.FST_FRAMES.frame_data[i].audio.audio_data, size);
+      FileSelect(nfile);
+      WriteBytes(
+        bytes,
+        duration,
+        size
+      );
+      duration += size;
+    }
+    FileSave(out_file_name);
+    FileClose();
+    FileSelect(file_num);
+}
+
+uint DumpFile(string out_file, uchar bytes[], uint64 len, int file_num){
+  if( file_num == 0 ){ file_num = GetFileNum(); }
+  LittleEndian();
+
+  // close the file if it exists
+  local uint64 files_i = 0;
+  local int open_file = FindOpenFile( out_file );
+  if( open_file > -1 ){
+    FileSelect(open_file);
+    FileClose();
+  }
+  FileSelect(file_num);
+
+  local uint new_file_index = FileNew("Hex", true);
+  WriteBytes(bytes, FTell(), sizeof(bytes));
+  FileSave(out_file);
+  FileClose();
+
+  FileSelect(file_num);
+  return new_file_index;
+}
+
+void DumpBMP(
+  string filename,
+  ubyte  bytes[],
+  uint64 width,
+  uint64 height,
+  uint64 size,
+  uint64 file_num
+){
+  LittleEndian();
+  local uint64 vpos = 0;
+  local ubyte write_up[2147483647];
+  local ubyte out[2147483647];
+  local uint64 len = 0;
+  local uint64 run = 0;
+  
+  len = ConvertDataToBytes((ubyte)42h,      write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((ubyte)4Dh,      write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((uint)(size+54), write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((ushort)0,       write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((ushort)0,       write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((uint)54,        write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((uint)40,        write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((int)width,      write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((int)height,     write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((ushort)1,       write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((ushort)24,      write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((uint)0,         write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((uint)size,      write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((uint)0,         write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((uint)0,         write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((uint)0,         write_up); Memcpy( out, write_up, len, run ); run += len;
+  len = ConvertDataToBytes((uint)0,         write_up); Memcpy( out, write_up, len, run ); run += len;
+  Memcpy( out, bytes, sizeof(bytes), run ); run += sizeof(bytes);
+  local ubyte final_out[run];
+  Memcpy(final_out, out, run);
+  
+  DumpFile(
+    filename,
+    final_out,
+    run,
+    file_num
+  );
+}
+
+local int f_i = file_num;
+void Save_FST_Frame( FST_FILE &fst, uint64 frame ){
+  LittleEndian();
+  file_name = GetFileName();
+  local string dump_name = Str("%s.%04i.%s", file_name, frame, "BMP");
+  DumpBMP(
+    dump_name,
+    fst.FST_FRAMES.frame_data[frame].video.RAW_PIXELS,
+    fst.frame_width,
+    fst.frame_height,
+    fst.frame_width * fst.frame_height * 3,
+    GetFileNum()
+  );
+  Printf("dumping: %i %s\n", frame, dump_name);
+}
+
+void Save_FST_Frames( FST_FILE &fst ){
+  local uint64 i = 0;
+  file_name = GetFileName();
+  for(i=0; i < fst.frames; i++){
+    Save_FST_Frame(fst, i);
+  }
+}
+
+void OneFrameBingo(){
+  local int fn = GetFileNum();
+  local string dir_loc = InputDirectory( "FST Folder", "C:\\projects\\harvest_reverse_engineer\\data\\combined_with_archives\\GRAPHIC\\FST" );
+  local TFileList fl = FindFiles(dir_loc, "*.FST");
+  int i;
+  int of = -1;
+  for( i = 0; i < fl.filecount; i++ ){
+    file_name = Str("%s%s", dir_loc, fl.file[i].filename);
+    file_num = FileOpen(file_name, true, "Hex", false);
+    RunTemplate("C:\\projects\\harvest_reverse_engineer\\tools\\templates\\Harvester_FST.bt", false);
+    Save_FST_Frame(fst_file, 0);
+    FileSelect(file_num);
+    FileClose();
+    FileSelect(fn);
+  }
+}
+
+//Save_FST_Frame(fst_file, 0);
+Save_FST_Frames(fst_file);
+//Save_FST_PCM(fst_file);
+// OneFrameBingo();

@@ -1,0 +1,203 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: HarvestSave.bt
+//   Authors: EntranceJew
+//   Version: 1.0
+//   Purpose: Viewing and editing Harvester (1995) saves.
+//  Category: Game
+// File Mask: SAVE.??
+//  ID Bytes: 
+//   History:
+//   1.0    2022-02-20  EntranceJew: Initial Version.
+//------------------------------------------------
+LittleEndian();
+
+typedef enum <ubyte> {
+    no,
+    yes
+} bool;
+
+typedef enum <ubyte> {
+    DIR_SOUTH = 0,
+    DIR_WEST  = 1,
+    DIR_EAST  = 2,
+    DIR_NORTH = 3
+} HARVEST_DIR;
+
+typedef struct {
+    bool active;
+    bool exit;
+} HARVEST_STATE<name=Str("[%s, %s]", this.active ? "active" : "inactive", this.exit ? "do exit" : "no exit")>;
+
+typedef struct {
+    uint len;
+    string data;
+} HARVEST_STRING<name=this.data>;
+
+typedef struct {
+    HARVEST_STRING flag_name;
+    ubyte value;
+} HARVEST_FLAG<name=Str("%s = %s", this.flag_name.data, this.value ? "true" : "false")>;
+
+typedef struct {
+    uint x;
+    uint y;
+} HARVEST_VEC2<name=Str("(%d, %d)", this.x, this.y)>;
+
+typedef struct {
+    uint x;
+    uint y;
+    uint z<comment="smaller = closer to screen">;
+} HARVEST_VEC3<name=Str("(%d, %d, %d)", this.x, this.y, this.z)>;
+
+typedef struct {
+    uint cd_number;
+    uint unk;
+    ubyte header[5];
+    HARVEST_STRING loaded_area;
+    HARVEST_STRING loaded_area_duplicate<comment="every time the game saves, it will make this identical to 'loaded_area'.\nif this is changed then it will be ignored in favor of 'loaded_area' on load.">;
+    
+    uint unknown <comment="game starts at 70, never seems to change, is loaded into memory and written">;
+    uint health <comment="max: 30;">;
+    typedef enum <uint> {
+        W_FISTS         =  0,
+        W_CLEAVER       =  1,
+        W_NAIL_GUN      =  2,
+        W_SHOTGUN       =  3,
+	    W_9GUN 		    =  4,
+        W_38GUN         =  5, // PC05 (graphics, not obtainable?)
+        W_TOMAHAWK      =  6, // PC06 (missing!)
+        W_KNIFE         =  7, // PC05 (graphics, not obtainable?)
+        W_FLAIL         =  8, // aka HOOKED_FLAIL
+        W_HANDAXE       =  9, // PC09 (missing!)
+        W_WRENCH        = 10,
+        W_PITCHFORK     = 11, 
+                              // parson
+        W_SCYTHE        = 12,
+        W_SWORD         = 13,
+        W_CHAINSAW      = 14, 
+                              // clown
+        W_HARVEST_BLADE = 15,
+        W_SHOVEL        = 16,
+        W_FIRE_AXE      = 17,
+                              // sparky
+	    W_BAT           = 18,
+                              // teacher
+        W_RAZOR         = 19, // PC09 (missing!)
+                              // pastorli
+        W_POOL_STICK    = 20
+    } HARVEST_WEAPON <format=hex>;
+    HARVEST_WEAPON equipped_weapon;
+    HARVEST_VEC3 player_position;
+    HARVEST_DIR player_facing_dir;
+    HARVEST_DIR player_facing_dir_duplicate<comment="probably used to determine the animation to play">;
+    HARVEST_DIR player_facing_dir_old<comment="is almost always 03, unknown purpose">;
+    HARVEST_DIR player_facing_dir_old_duplicate<comment="similar to 'player_facing_dir_duplicate'">;
+    // 01 01 03 03 = facing west  (left )
+    // 00 00 03 03 = facing south (down )
+    // 02 02 03 03 = facing east  (right)
+    // 03 03 03 03 = facing north (up   )
+    
+
+    struct {
+        uint ints;
+        struct {
+            HARVEST_STRING int_name<name=this.data>;
+            ubyte unk1;
+            ubyte unk2;
+            uint value;
+        } HARVEST_INT[ ints ]<optimize=false,
+        name=Str("%s = %d (%d,%d)", this.int_name.data, this.value, this.unk1, this.unk2)>;
+    } all_ints;
+
+    struct {
+        uint flags;
+        HARVEST_FLAG flag_data[flags]<optimize=false,
+        name=Str("%s = %s", this.flag_name.data, this.value ? "true" : "false")>;
+    } all_flags;
+
+    struct {
+        uint monsters;
+        struct {
+            HARVEST_STRING monster_name;
+            uint unknown;
+            ubyte unk1[3]; // changes after death
+            // TVROBOT      00 00 00 => alive => 01 01 00
+            // TVROBOT      01 01 00 => death => 
+            // COWBOY       00 00 00 => death => 01 27 01
+            // COWBOY       00 00 00 => l.ded => 00 00 01
+            HARVEST_VEC3 monster_position;
+            uint unknown5; // changes after death
+            uint unknown6; // does not change after death
+        } HARVEST_MONSTER[monsters]<optimize=false,
+        name=Str("%s", this.monster_name.data)>;
+    } all_monsters;
+
+    struct {
+        uint characters;
+        typedef struct {
+            HARVEST_STRING char_name;
+            ubyte is_alive;  // 00 on death, 01 on alive
+            ubyte is_alive2; // 00 on death, 01 on alive
+            ubyte is_dead;   // 01 on death, 00 on alive
+            uint  is_four;   // 04 on death, 00 on alive
+            // 01 01 00 00 00 00 00
+            // 00 00 01 00 00 00 00
+            // difference: killed moynahan @ motel, FMV seen
+        } HARVEST_CHARACTER_CONDITION; // MOYNAHAN @ 1AA0h
+        HARVEST_CHARACTER_CONDITION character_conditions[characters]<optimize=false,
+        name=Str("%s", this.char_name.data)>;
+    } all_characters;
+
+    struct {
+        uint items;
+        typedef struct {
+            HARVEST_STRING item_name;
+            HARVEST_VEC2 item_position;
+            uint blame;
+            if( blame > 0 ){
+                Printf("%s blame interesting: %d\n", item_name.data, blame);
+            }
+            HARVEST_STRING location; // usually either NULL_ID or INVENTORY
+            bool is_active;
+            bool unknown;
+        } HARVEST_INVENTORY_ITEM;
+        HARVEST_INVENTORY_ITEM item_data[items]<optimize=false,
+        name=Str("%s @ %s (%d,%d) [%04X, %01X, %01X]", this.item_name.data, this.location.data, this.item_position.x, this.item_position.y, this.blame, this.is_active, this.unknown)>;
+    } all_items;
+
+    struct {
+        uint more_flags;
+        HARVEST_FLAG more_flag_data[more_flags]<optimize=false,
+        name=Str("%s = %s", this.flag_name.data, this.value ? "true" : "false")>;
+    } all_more_flags;
+
+    struct {
+        uint timers;
+        typedef struct {
+            HARVEST_STRING timer_name;
+            bool has_elapsed;
+            uint duration;
+            Printf("%s (duration: %d)\n", timer_name.data, duration);
+        } HARVEST_TIMER;
+        HARVEST_TIMER timer_data[timers]<optimize=false,
+        name=Str("%s [%d, %02X]", this.timer_name.data, this.duration, this.has_elapsed)>;
+    } all_timers;
+
+    ubyte byte_field[1200-12-4-4];
+    uint shotgun_ammo;
+    uint unknown_ammo2;
+    uint nine_mm_ammo;
+    uint nailgun_ammo;
+    uint chainsaw_ammo;
+    HARVEST_STRING last_song;
+    if( !FEof() ){
+        ubyte unknown_extra[24];
+        HARVEST_STRING bonus_song;
+    }
+
+    Printf("ints: %d\nflags: %d\nmonsters: %d\ncharacters: %d\nitems: %d\nmflags: %d\ntimers: %d\n", all_ints.ints, all_flags.flags, all_monsters.monsters, all_characters.characters, all_items.items, all_more_flags.more_flags, all_timers.timers);
+} HARVEST_SAVE;
+
+HARVEST_SAVE kidder<optimize=false>;

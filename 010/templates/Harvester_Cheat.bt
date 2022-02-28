@@ -1,0 +1,21 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+// 0x1065C4
+uint cheat_lengths[8];
+
+typedef struct {
+    ubyte data[64];
+}  CHEAT;
+
+CHEAT cheats[8];

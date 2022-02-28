@@ -1,0 +1,3 @@
+# file paths null terminated
+.?:[/\\][A-Z/\\0-9_a-z\.]+\x00?
+

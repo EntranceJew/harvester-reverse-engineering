@@ -1,0 +1,41 @@
+640x480
+
+FILES:file open command 2 file .\temp.fil							1
+FILES:file create attributes 0 file .\temp.fil						1
+FILES:file open command 2 file .\temp.fil							1
+FILES:file open command 0 file D:\harvest.dat						1
+FILES:file open command 2 file D:\index.001							1
+FILES:file open command 0 file D:\sound.dat							1
+FILES:file open command 2 file D:\index.002							1
+FILES:file open command 0 file C:\HARVEST\harvest2.dat				1
+FILES:file open command 2 file D:\index.003							1
+FILES:file open command 0 file D:\HARVEST.SCR						3
+...
+FILES:file open command 0 file D:\GRAPHIC\FST\VIRGLOGO.FST			2
+FILES:file open command 0 file D:\GRAPHIC\FST\FVLOGO.FST			2
+FILES:file open command 0 file D:\GRAPHIC\FST\INTROFIN.FST			2
+...
+FILES:file open command 0 file dialog.rsp
+FILES:file open command 0 file D:\dialogue.idx			4
+FILES:file open command 0 file D:\graphic\font\harvfont.cft			2
+FILES:file open command 0 file D:\graphic\font\harvfnt2.cft			2
+FILES:file open command 0 file D:\graphic\font\textfont.cft			2
+FILES:file open command 0 file D:\graphic\font\textfnt2.cft			2
+FILES:file open command 0 file D:\graphic\font\medfont1.cft			2
+FILES:file open command 0 file D:\graphic\font\medfont2.cft			2
+FILES:file open command 0 file D:\blood.abm							4
+...
+FILES:file open command 0 file D:\SOUND\MUSIC\MORNING2.CMP			2
+FILES:file open command 2 file .\LOADSAVE.DES						1
+FILES:file open command 0 file D:\adjhead.rcs						1
+...
+FILES:file open command 0 file D:\blood.abm							4
+FILES:file open command 0 file D:\SOUND\MUSIC\COWBOYS1.CMP			2
+...
+FILES:file open command 0 file D:\SOUND\MUSIC\TOWN1FX.CMP			2
+FILES:file open command 0 file D:\blood.abm							4
+...
+FILES:file open command 0 file D:\GRAPHIC\FST\C050.FST				2		arrested 
+FILES:file open command 0 file D:\GRAPHIC\FST\C050SHER.FST			2		cop car arriving to station
+... [some omitted]
+FILES:file open command 0 file D:\GRAPHIC\FST\C005.FST				2		electric chair

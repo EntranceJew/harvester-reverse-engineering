@@ -1,0 +1,119 @@
+# Screen Shit
+  0 x   0 = top left
+640 x 480 = resolution
+
+### Important Enums
+$BOOL   = "F"/"T"
+$FACING = "RIGHT"/"LEFT"/"FRONT"/"BACK"
+$DAMAGE = "BLUDGE"/"SLASH"/"PROJ"
+
+### Important String-ID
+
+$ROOM_ID
+$REGION_ID
+
+
+# Script Stuff
+
+
+## Commands
+ - ADD
+ - ADD2INV
+ - CHANGE_ROOM
+ - CHECK_FLAG
+ - CHECK_D_FLAG
+ - CHECK_PERC
+ - CLOSEUP
+ - DELETE
+ - END_DEMO
+ - EXEC_LIST
+ - EXIT_CLOSEUP
+ - GOFLIC
+ - HEAL_NPC
+ - HEAL_PC
+ - KILL_NPC
+ - KILL_PC
+ - KILL_TIMER
+ - MONSTERFY
+ - REPLACE
+ - SET_ANIM
+ - SET_FLAG
+ - SET_D_FLAG
+ - SET_NPC
+ - SET_MONSTER
+ - SET_REGION
+ - SET_TIMER
+ - SHOW_TEXT
+ - SPOOL_MUSIC
+ - START_DIALOG
+ - START_WAV
+ - LOAD_WAV
+ - PLAY_WAV
+ - DELETE_WAV
+ - GODEATHFLIC
+ - ADJ_HP
+ - PC_GOTO_XZ
+ - PC_GOTO_Y
+ - PC_GOTO_Z
+ - PC_MOVETO_XZ
+ - PC_CHANGE_WEAPON
+ - CHANGE_LIGHTING
+ - CHANGE_CD
+ - PAUSE_PC
+ - RESUME_PC
+ - ADD_SHOTGUN_SHELLS
+ - ADD_9MM_BULLETS
+ - ADD_38_BULLETS
+ - ADD_NAILS
+ - ADD_GASCANS
+ - MOVE_BM2PCZ
+ - STOP_MUSIC
+ - UPDATE_SCREEN
+ - START_SINGLE_WAV
+
+## DEFINITION
+ - ANIM
+ - COMMAND
+ - ENTRANCE
+ - EXEC_LIST
+ - FLAG
+ - HEAD
+ - MAP_ENTRANCE
+ - MAP_LOCATION
+ - MONSTER
+ - NPC
+ - OBJECT
+ - REGION
+ - ROOM
+ - TEXT
+ - TIMER
+ - USEITEM
+
+
+
+### REGION
+{// LX  TY  RX  BY  FZ BZ REGION $REGION_ID        $FACING $ROOM_ID    $COMMAND   ACT EXIT }
+    270 418 370 479 0  42 REGION "RECP_2_BOWLNTR1" "FRONT" "RECEPTION" "RECPEXIT" "T" "T"
+
+
+### NPC
+{// LX  TY  FZ  BZ  NPC ROOM_ID   GRAPHIC                       ID     UNK2 UNK3 UNK4 COMMAND        UNK5 NAME }
+    380 435 10  15  NPC "PCLIVRM" "1:\GRAPHIC\CHAR\HANKSIT.ABM" "HANK" ""   "T"  "T"  "DIE_IN_CHAIR" ""   "Hank"
+
+### TIMER
+{// T  TIMER ...
+
+### TEXT
+{// X Y TEXT ...
+
+### USEITEM
+{// ...
+USEITEM "DOLLY" "PCLIVRM" "PC_CABNET" "PC_CAB"
+
+### COMMAND
+COMMAND "PC_CAB"  "SET_ANIM"  "CABNET"                        "T"            "T" "PC_CAB1"
+COMMAND "PC_CAB1" "START_WAV" "2:\SOUND\EFFECTS\WDPANEL1.WAV" ""             ""  "PC_CAB2"
+COMMAND "PC_CAB2" "ADD2INV"   "DOLLY"                         ""             ""  "PC_CAB3"
+COMMAND "PC_CAB3" "DELETE"    "PCLIVRM"                       "PC_CABNET"    ""  "PC_CAB4"
+COMMAND "PC_CAB4" "DELETE"    "PCLIVRM"                       "PC_ALARM_HS"  ""  "PC_CAB5"
+COMMAND "PC_CAB5" "ADD"       "PCLIVRM"                       "PC_LIV_ALARM" ""  ""

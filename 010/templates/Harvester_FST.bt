@@ -1,0 +1,297 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//    File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: *.FST
+//  ID Bytes: 32 54 53 46
+//   History: 
+//------------------------------------------------
+LittleEndian();
+
+typedef struct {
+  local ubyte r;
+  local ubyte g;    
+  local ubyte b;
+} RGB;
+
+typedef struct {
+  ubyte r;
+  ubyte g;    
+  ubyte b;
+} RGB_hard;
+
+typedef struct ( uint64 width ){
+  local RGB pixels[width];
+} ImageRow;
+
+typedef struct ( uint64 height, uint64 width ){
+  local uint64 width = width;
+  local uint64 height = height;
+  local ImageRow rows(width)[height];
+} Image;
+
+uint64 LINEAR_TO_TWOD_YX_Y(uint64 pos, uint64 dim_y, uint64 dim_x) {
+  return (pos-(pos%dim_y))/dim_y;
+}
+
+uint64 LINEAR_TO_TWOD_YX_X(uint64 pos, uint64 dim_y, uint64 dim_x) {
+  return (pos-(((pos-(pos%dim_y))/dim_y)*dim_y));
+}
+
+uint64 TWOD_TO_LINEAR_YX_POS(uint64 y, uint64 x, uint64 dim_y, uint64 dim_x) { 
+  return (y*dim_y)+x;
+}
+
+const uint BLOCK_SIZE = 4;
+// input  512x512
+// 4x4     
+// m=k^2       16
+// CR           4
+// BR           2
+const uint FST_PALETTE_SIZE = 256;
+const uint BITS_PER_COLOR  = 8;
+const uint BYTES_PER_PIXEL = 3;
+
+local uint64 read_progress  = 0;
+local uint64 bit_progress   = 0;
+local ubyte  bit            = 0;
+local uint64 byte_location  = 0;
+
+ubyte BitPeeker(uint64 pos, ubyte bit){
+  return (ReadUByte(pos) & ( 1 << bit )) >> bit;
+}
+
+ubyte UltraPeep(string purposeTrue, string purposeFalse) {
+  bit = BitPeeker(byte_location+read_progress, 7-bit_progress);
+  //Printf("%04X+%04X @ %04X:%i == %i & %s\n", byte_location, read_progress, byte_location+read_progress, bit_progress, bit, bit ? purposeTrue : purposeFalse);
+  bit_progress++;
+  if( bit_progress > 7 ){ 
+    bit_progress = 0;
+    read_progress++;
+  };
+  return bit;
+};
+
+void UltraPeepReset(uint64 new_start){
+  byte_location = new_start;
+  read_progress = 0;
+  bit_progress  = 0;
+}
+
+typedef struct FST_FRAME_DESCRIPTOR {
+  uint   video_size;
+  ushort audio_size;
+};
+
+struct FST_FILE {
+  uchar signature[4];
+  uint  frame_width;
+  uint  frame_height;
+  uint  ticks;        // frame rate in ticks
+  uint  frames;
+  uint  rate;         // frame rate per second
+  uint  sound_rate;   // frequency
+  uint  sound_bits;   // sound sample size
+
+  local uint output_scale = 2;
+
+  local struct {
+    local uint64 pcm_length;
+    local ubyte COMPOSITE_PIXELS[ frame_width * frame_height * BYTES_PER_PIXEL ];
+    local ubyte COMPOSITE_PALETTE[ FST_PALETTE_SIZE * BYTES_PER_PIXEL ];
+    local ubyte should_load_palette = 0;
+  } vars;
+
+
+  FST_FRAME_DESCRIPTOR frame_descriptors[frames]<bgcolor=0x00ff00>;
+
+  typedef struct FST_FRAME_BLOCK(FST_FRAME_DESCRIPTOR &frame, int frame_dex) {
+    local uint64 pos = FTell();
+    if( (FileSize() - pos) < (frame.video_size + frame.audio_size) ){
+      Printf("/!\\ there are only %i bytes left in the file but we expect to find %i /!\\\n", (FileSize() - pos), (size_video+size_audio));
+      return;
+    }
+
+    typedef struct FST_VIDEO(FST_FRAME_DESCRIPTOR &frame, int frame_dex ){
+      ushort bitmap_size;
+      local ubyte RAW_PIXELS[frame_width * frame_height * BYTES_PER_PIXEL];
+      //local Image IMG(frame_height, frame_width);
+  
+      //local uint64 real_bitmap_size = (bitmap_size/8)-1;
+      //local uint64 real_bitmap_size = ((bitmap_size-1)/8);
+      local uint64 real_bitmap_size = ((bitmap_size-1)/8)+1;
+      ubyte bitmap_data[real_bitmap_size]<bgcolor=cLtBlue>;
+      UltraPeepReset(startof(bitmap_data));
+      
+      vars.should_load_palette = UltraPeep("load palette bit detected", "ignore palette bit detected");
+      if( vars.should_load_palette ){
+        //Printf("FST-D: load palette bit detected, seq: 1\n");
+        local uint64 p_i = 0;
+        ubyte local_palette[sizeof(vars.COMPOSITE_PALETTE)]<bgcolor=cDkAqua>;
+        for(p_i = 0; p_i < FST_PALETTE_SIZE; p_i++){
+          vars.COMPOSITE_PALETTE[p_i*BYTES_PER_PIXEL + 0] = local_palette[(p_i*BYTES_PER_PIXEL)+0];
+          vars.COMPOSITE_PALETTE[p_i*BYTES_PER_PIXEL + 1] = local_palette[(p_i*BYTES_PER_PIXEL)+1];
+          vars.COMPOSITE_PALETTE[p_i*BYTES_PER_PIXEL + 2] = local_palette[(p_i*BYTES_PER_PIXEL)+2];
+        }
+      } else {
+        //Printf("FST-D: ignore palette bit detected, seq: 0\n");
+      }
+
+      local uint64 big_long_now = FTell();
+      local uint64 expected_size = frame.video_size-(FTell()-pos);
+
+      /*
+      Printf("frame %i, video size %i, audio size %i, byte 0x%00X, at %i, want %i, palette %i\n",
+        i,
+        frame.video_size,
+        frame.audio_size,
+        ReadUByte(FTell()),
+        FTell(),
+        expected_size,
+        vars.should_load_palette
+      );
+      */
+
+      typedef struct FST_DECODE_ATROCITY(FST_FRAME_DESCRIPTOR &frame, int frame_dex) {
+        local uint64 i = 0;        
+        local ubyte  pixel      = 0;
+        local ushort btc_map_shadow = 0;
+    
+        local uint64 x = 0;
+        local uint64 y = 0;
+        local uint64 bx = 0;
+        local uint64 by = 0;
+        local uint64 backdraw_blocks = 0;
+        local uint64 backdraw_i = 0;
+  
+        local double block_progress = 0;
+          
+        local string old_status;
+        local string status;
+
+        local uint64 pos_y, pos_x;
+        local uint64  bp_y,  bp_x;
+        local uint64 max_y, max_x;
+        local uint64 modg, modq;
+
+        max_y = (frame_height/BLOCK_SIZE)-1;
+        max_x = (frame_width/BLOCK_SIZE);
+
+        //Printf("max-edge %i,%i\n", frame_height, frame_width);
+        for(by=0; by < max_y; by++){
+          for(bx=0; bx < max_x; bx++){
+            if( UltraPeep("non-skip bit detected", "skip bit detected") ){
+              //Printf("FST-D: non-skip bit detected, seq: 1\n");
+              bit = UltraPeep("BTC block bit detected", "literal block bit detected");
+              if( bit ){
+                // fast-code: 11
+                //Printf("FST-D: BTC bits detected, seq: 1\n");
+                ubyte color0;
+                ubyte color1;
+                ushort btc_map;
+                btc_map_shadow = btc_map;
+              } else {
+                // fast-code: 10
+                //Printf("FST-D: literal block detected, seq: 1\n");
+              }
+
+
+              for(y=0; y < BLOCK_SIZE; y++){
+                for(x=0; x < BLOCK_SIZE; x++){
+                  if( bit ){
+                    pixel = (btc_map_shadow & 8000h) ? color1 : color0;
+                    btc_map_shadow <<= 1;
+                  } else {
+                    ubyte data;
+                    pixel = data;
+                  }
+
+                  // throwingthings at a wall for the sake of 
+                  /*
+                  // modg = (frame_dex == 23 && x == 0) ? -1 : 0;
+                  if((frame_dex == 23 && x == 0)){
+                    modg = (BLOCK_SIZE-y)%BLOCK_SIZE;
+                  } else {
+                    modg = y;
+                  }
+                  modg = (frame_dex == 23 && x == (BLOCK_SIZE-1)) ?  : y;
+                  pos_y = ((frame_height-1)-((by*BLOCK_SIZE)+modg));
+                  modq = (frame_dex == 23 && x == 0) ? bx+1 : bx;
+                  pos_x = (modq*BLOCK_SIZE)+x;
+                  */
+
+                  // b/c we're targeting bitmap export, we're writing these rows in reverse order
+                  pos_y = (frame_height-1)-((by*BLOCK_SIZE)+y);
+                  pos_x = (bx*BLOCK_SIZE)+x;
+                  i = (pos_y * frame_width) + pos_x;
+
+                  // NOTE: bitmaps are Blue/Green/Red, so we're writing them that way
+                  vars.COMPOSITE_PIXELS[i*BYTES_PER_PIXEL + 0] = vars.COMPOSITE_PALETTE[pixel*BYTES_PER_PIXEL + 2];
+                  vars.COMPOSITE_PIXELS[i*BYTES_PER_PIXEL + 1] = vars.COMPOSITE_PALETTE[pixel*BYTES_PER_PIXEL + 1];
+                  vars.COMPOSITE_PIXELS[i*BYTES_PER_PIXEL + 2] = vars.COMPOSITE_PALETTE[pixel*BYTES_PER_PIXEL + 0];
+                }
+              }
+            } else { 
+              // fast-code: 0
+              //Printf("FST-D: skip bits detected, seq: 0\n");
+            }
+          }
+        }
+      };
+      if( bitmap_size > 4001 ){
+        FST_DECODE_ATROCITY decode_atrocity( frame, frame_dex )<optimize=false,bgcolor=cDkRed>;
+      }
+      local uint64 atrocity_size = FTell() - big_long_now;
+
+
+      //if( atrocity_size < expected_size ){
+        //Printf("/!\\ the atrocity %i was smaller than expected size %i by %i\n", atrocity_size, expected_size, expected_size-atrocity_size);
+      //} else if( atrocity_size > expected_size ){
+        //Printf("/!\\ the atrocity %i was bigger than expected size %i by %i\n", atrocity_size, expected_size, atrocity_size-expected_size);
+      //}
+
+
+      // debug clear frames to capture deltas
+      /*
+      if( (frame_dex+1) % 23 == 0 ){
+        Memset(vars.COMPOSITE_PIXELS, 0, sizeof(vars.COMPOSITE_PIXELS));
+      }
+      */
+      Memcpy(RAW_PIXELS, vars.COMPOSITE_PIXELS, sizeof(vars.COMPOSITE_PIXELS));
+    };
+    FST_VIDEO video( frame, frame_dex )<comment=Str("bitmap: %i", this.bitmap_size)>;
+
+    FSeek(pos+frame.video_size);
+    typedef struct FST_AUDIO( FST_FRAME_DESCRIPTOR &frame ){
+      local uint64 size = frame.audio_size;
+      ubyte audio_data[frame.audio_size];
+    };
+    FST_AUDIO audio ( frame )<bgcolor=cDkGreen>;
+    vars.pcm_length += sizeof(audio.audio_data);
+  };
+  
+  struct {
+    local int i = 0;
+    local uint64 goal = frames;
+    
+    // debug only handle a limited number of frames
+    // goal = 24;
+    for(i = 0; i < goal; i++){
+      //if( (FileSize() - FTell()) < (frame_descriptors[i].video_size+frame_descriptors[i].audio_size) ){
+        //Printf("/!\\ there are only %i bytes left in the file but we expect to find %i /!\\", (FileSize() - FTell()), (frame_descriptors[i].video_size+frame_descriptors[i].audio_size));
+        //break;
+      //} else {
+        if(i == 23){
+          Printf("it begins\n");
+        }
+        FST_FRAME_BLOCK frame_data( frame_descriptors[i], i )<open=true>;
+      //}
+    }
+  } FST_FRAMES<open=true>;
+} fst_file<open=true>;
+
+Printf("FST parsed!\n");
