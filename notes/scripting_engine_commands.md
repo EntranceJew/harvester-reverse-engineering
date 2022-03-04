@@ -9,6 +9,9 @@ $DAMAGE = "BLUDGE"/"SLASH"/"PROJ"
 
 ### Important String-ID
 
+$PATH  =  "$N:\SOME\PATH\FILE.EXT"
+
+$HEAD_ID
 $ROOM_ID
 $REGION_ID
 
@@ -19,7 +22,7 @@ $REGION_ID
 ## Commands
  - ADD
  - ADD2INV
- - CHANGE_ROOM
+ - **"CHANGE_ROOM" $ENTRANCE_ID**
  - CHECK_FLAG
  - CHECK_D_FLAG
  - CHECK_PERC
@@ -73,47 +76,119 @@ $REGION_ID
 
 ## DEFINITION
  - ANIM
- - COMMAND
+ - **COMMAND**
  - ENTRANCE
  - EXEC_LIST
  - FLAG
  - HEAD
- - MAP_ENTRANCE
- - MAP_LOCATION
+ - **MAP_ENTRANCE**
+ - **MAP_LOCATION**
  - MONSTER
- - NPC
+ - **NPC**
  - OBJECT
- - REGION
+ - **REGION**
  - ROOM
- - TEXT
- - TIMER
- - USEITEM
+ - **TEXT**
+ - **TIMER**
+ - **USEITEM**
 
-
-
-### REGION
-{// LX  TY  RX  BY  FZ BZ REGION $REGION_ID        $FACING $ROOM_ID    $COMMAND   ACT EXIT }
-    270 418 370 479 0  42 REGION "RECP_2_BOWLNTR1" "FRONT" "RECEPTION" "RECPEXIT" "T" "T"
-
-
-### NPC
-{// LX  TY  FZ  BZ  NPC ROOM_ID   GRAPHIC                       ID     UNK2 UNK3 UNK4 COMMAND        UNK5 NAME }
-    380 435 10  15  NPC "PCLIVRM" "1:\GRAPHIC\CHAR\HANKSIT.ABM" "HANK" ""   "T"  "T"  "DIE_IN_CHAIR" ""   "Hank"
-
-### TIMER
-{// T  TIMER ...
-
-### TEXT
-{// X Y TEXT ...
-
-### USEITEM
-{// ...
-USEITEM "DOLLY" "PCLIVRM" "PC_CABNET" "PC_CAB"
+### ANIM
+...
+{// 
+      558 317 60 15  ANIM "PCKIT" "1:\GRAPHIC\ROOMANIM\PCKTDRIP.ABM" "PCKTDRIP"     "T" "T" "T" "F" "F" "F"
+      196 435 10 15  ANIM "PCKIT" "1:\GRAPHIC\ROOMANIM\BABY.ABM"  "PCKTBABYANIM" "T" "T" "T" "F" "F" "F"
 
 ### COMMAND
+{// COMMAND   $COMMAND_ID  $COMMAND_TO_RUN  ARG1     ARG2     ARG3  POST_RUN:$COMMAND_ID
 COMMAND "PC_CAB"  "SET_ANIM"  "CABNET"                        "T"            "T" "PC_CAB1"
 COMMAND "PC_CAB1" "START_WAV" "2:\SOUND\EFFECTS\WDPANEL1.WAV" ""             ""  "PC_CAB2"
 COMMAND "PC_CAB2" "ADD2INV"   "DOLLY"                         ""             ""  "PC_CAB3"
 COMMAND "PC_CAB3" "DELETE"    "PCLIVRM"                       "PC_CABNET"    ""  "PC_CAB4"
 COMMAND "PC_CAB4" "DELETE"    "PCLIVRM"                       "PC_ALARM_HS"  ""  "PC_CAB5"
 COMMAND "PC_CAB5" "ADD"       "PCLIVRM"                       "PC_LIV_ALARM" ""  ""
+
+### ENTRANCE
+...
+{// X Y Z ENTRANCE $FACING $ROOM_ID $ENTRANCE_ID
+  308 415 46 ENTRANCE "BACK" "RECEPTION" "START"
+
+### EXEC_LIST
+Define a list of commands to run, will still utilize POST_RUN convention
+
+
+{// EXEC_LIST   $EXEC_LIST_ID   ARG1    ARG2    ARG3    ARG4    ARG5    POST_RUN:$COMMAND_ID
+		 USEITEM "CAKECOVR2"             "DNALFT"    "ALRM_UNCOVR"       "CAKE1"
+        COMMAND "CAKE1"              "EXEC_LIST" "CAKE2"             ""            "" ""
+        EXEC_LIST "CAKE2" "PLAY_WAV_CKAKEDISH"   "COM89" "COM90" "COM91" "COM92" ""
+        COMMAND "PLAY_WAV_CKAKEDISH" "START_WAV" "2:\SOUND\EFFECTS\CAKEDSH1.WAV" ""   "" ""
+        COMMAND "COM89"              "DELETE"    "DNALFT"            "ALRM_UNCOVR" "" ""
+        COMMAND "COM90"              "ADD"       "DNALFT"            "CAKECOVR3"   "" ""
+        COMMAND "COM91"              "SET_FLAG"  "DNA_ALARM_COVERED" "T"           "" ""
+        COMMAND "COM92"              "DELETE"    "DNALFT"            "CAKECOVR2"   "" ""
+
+### FLAG
+...
+
+### HEAD
+{// HEAD HEAD_ID            $PATH
+HEAD "BOYLE0"               "1:\GRAPHIC\HEADS\PMBOYLE1"
+HEAD "BOYLE1"               "1:\GRAPHIC\HEADS\PMBOYLE2"
+HEAD "BOYLE2"               "1:\GRAPHIC\HEADS\PMBOYLE3"
+HEAD "BOYLE3"               "1:\GRAPHIC\HEADS\PMBOYLE4"
+
+### MAP_ENTRANCE
+{// PC_LEFT PC_TOP MAP MAP_ENTRANCE ENTRANCE_ID }
+   51     150    0   MAP_ENTRANCE "BARB_2_MAP"
+  430     100    0   MAP_ENTRANCE "PCHOUSE_2_MAP"
+  430     100    0   MAP_ENTRANCE "LODGE_2_MAP"
+  567     164    1   MAP_ENTRANCE "STHOUSE_2_MAP"
+  300     200    0   MAP_ENTRANCE "POST_2_MAP"
+
+### MAP_LOCATION
+ 51 150 169 243 0  70 150 MAP_LOCATION "Barber_Shop"              "MAP_2_BARB"
+169  41 315 149 0 230 130 MAP_LOCATION "General_Store"            "MAP_2_STORE"
+353 278 639 479 0 440 320 MAP_LOCATION "The_Lodge"                "MAP_2_SERGEANT"
+ 49 278 315 479 0 150 325 MAP_LOCATION "Missile_Base"             "MAP_2_BASE"
+355  57 549 239 0 420 145 MAP_LOCATION "Your_House"               "MAP_2_PCHOUSE"
+169 150 315 243 0 210 250 MAP_LOCATION "Post_Office"              "MAP_2_POST"
+549  57 639 239 0 510  70 MAP_LOCATION "Pottsdam_Residence"       "MAP_2_STHOUSE"
+251  57 384 241 1 270 180 MAP_LOCATION "Johnson_Residence"        "MAP_2_JOHNSHOUSE"
+  0 278 115 479 1  20 320 MAP_LOCATION "The_Lodge"                "MAP_2_SERGEANT"
+
+### MONSTER
+...
+
+### NPC
+{// LX  TY  FZ  BZ  NPC ROOM_ID   GRAPHIC                       ID     UNK2 UNK3 UNK4 COMMAND        UNK5 NAME }
+    380 435 10  15  NPC "PCLIVRM" "1:\GRAPHIC\CHAR\HANKSIT.ABM" "HANK" ""   "T"  "T"  "DIE_IN_CHAIR" ""   "Hank"
+
+### OBJECT
+...
+
+{// 
+   424  288  464  304  20 1 OBJECT "CLOAKROOM" "CLOAKROOM_HS1" "" "" "" "" "" "CLOAKROOM_HS1_LT" "F" "T" "" "hat_box"
+
+### REGION
+{// LX  TY  RX  BY  FZ BZ REGION $REGION_ID        $FACING $ROOM_ID    $COMMAND   ACT EXIT }
+    270 418 370 479 0  42 REGION "RECP_2_BOWLNTR1" "FRONT" "RECEPTION" "RECPEXIT" "T" "T"
+
+### ROOM
+...
+
+{// LX LY ??? ??? ? ?? ROOM $ROOM_ID    
+    15 15 375 405 0 88 ROOM "CLOAKROOM" "SOUND\MUSIC\LODGERA.CMP" "" "" "" "1:\GRAPHIC\PAL\CLOAKROM.PAL" "F"  "CLOAK_ENTR" ""
+
+
+
+
+### TEXT
+{// X Y TEXT $TEXT_ID $BOX_ID CONTENT
+     {    100 100 TEXT "KILL_STEPH_LTEXT" "BOX1" "Kill_Stephanie"
+     {    100 100 TEXT "MARY_STEPH_LTEXT" "BOX1" "Marry_Stephanie"
+
+### TIMER
+{// T  TIMER ...
+
+### USEITEM
+{// USEITEM $OBJECT_ID $ROOM_ID $OBJECT_ID $COMMAND_ID
+USEITEM "DOLLY" "PCLIVRM" "PC_CABNET" "PC_CAB"

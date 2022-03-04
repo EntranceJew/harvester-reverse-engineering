@@ -123,7 +123,8 @@ struct FST_FILE {
   
       //local uint64 real_bitmap_size = (bitmap_size/8)-1;
       //local uint64 real_bitmap_size = ((bitmap_size-1)/8);
-      local uint64 real_bitmap_size = ((bitmap_size-1)/8)+1;
+      //local uint64 real_bitmap_size = ((bitmap_size-1)/8)+1;
+      local uint64 real_bitmap_size = (bitmap_size+8)/8;
       ubyte bitmap_data[real_bitmap_size]<bgcolor=cLtBlue>;
       UltraPeepReset(startof(bitmap_data));
       

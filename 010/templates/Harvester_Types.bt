@@ -1,0 +1,175 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: XFLE
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+typedef struct {
+  ubyte i;
+} GRAYSCALE_PIXEL <bgcolor = ((((uint64)i) << 16) + (((uint64)i) <<  8) + ((uint64)i))>;
+
+typedef struct {
+  ubyte r; // (         r)
+  ubyte g; // (((uint64)g) <<  8)
+  ubyte b; // (((uint64)b) << 16)
+} RGB <bgcolor = ((((uint64)b) << 16) + (((uint64)g) <<  8) + ((uint64)r))>;
+
+typedef struct PAL_FILE {
+  RGB rgb[256]<optimize=false>;
+};
+
+typedef struct BM_FILE {
+  uint width;
+  uint height;
+  uint unk_pointer_external_palette; // @TODO: why do you exist
+  GRAYSCALE_PIXEL data[width*height]<optimize=false>;
+  // @TODO: allow a byte array to be supplied for optional decoding, otherwise, generate a grayscale image here
+};
+
+typedef struct CONTROL_PIXEL {
+  ubyte value     : 7;
+  ubyte do_repeat : 1;
+};
+
+typedef struct {
+  uint  cell_pad_x; // for drawing on screen
+  uint  cell_pad_y; // for drawing on screen
+  uint  cell_width;
+  uint  cell_height;
+  enum <ubyte> {
+    ABM_COMPRESSION_UNC = 0,
+    ABM_COMPRESSION_RLE = 1
+  } ABM_COMPRESSION_FLAG;
+  uint  payload_length;
+  uint  unknown_palette_file_maybe;
+  if((cell_width*cell_height) > parentof(this).unk_memory_allocation) {
+    Printf("our payload %i is too big for our unpadded parent!\n", payload_length);
+  }
+  struct {
+    switch( ABM_COMPRESSION_FLAG ) {
+      case ABM_COMPRESSION_UNC:
+          GRAYSCALE_PIXEL data[cell_width*cell_height]<optimize=false>;
+          break;
+      case ABM_COMPRESSION_RLE:
+          local uint64 i, run;
+          local ubyte is_repeated, val;
+          for( i = 0; i < payload_length; i++ ){
+            CONTROL_PIXEL control<bgcolor=cDkRed>;
+            is_repeated = control.do_repeat;
+            val         = control.value;
+            if(is_repeated){
+              // repeat
+              for(run=0; run < val; run++){
+                GRAYSCALE_PIXEL data<optimize=false>;
+                FSkip(-1);
+              }
+              FSkip(1);
+              i++;
+            } else {
+              // literal
+              GRAYSCALE_PIXEL data[val]<optimize=false>;
+              i += val;
+            }
+          }
+          break;
+    }
+  } WHAT;
+} ABM_FILE_CELL<comment=Str("payload: %i; size: %i", payload_length, cell_height*cell_width)>;
+
+typedef struct ABM_FILE {
+  uint cell_count;
+  uint unk_memory_allocation; // @TODO: why do you exist
+  // for the bat this is the max number of pixels to form the bounding box of an image [0 x/y offsets]
+
+  ABM_FILE_CELL cells[cell_count]<optimize=false>;
+
+  ubyte garbage[FileSize()-FTell()];
+};
+
+typedef struct XFLE_FILE( uint load_data ){
+  LittleEndian();
+  char head[4]; // XFLE
+
+  local uint64 i = 0;
+  local ubyte read;
+  local ubyte did_null;
+  for(i = 0; i < 144; i++){
+    read = ReadUByte(FTell()+i);
+    if( read == 0 ){
+      if( i == 0 ){
+        did_null = true;
+        continue;
+      } else {
+        break;
+      }
+    }
+  }
+  FSkip(did_null ? 1 : 0);
+
+  char path[i-did_null]; // 80 = limit? 128?
+  ubyte garbage[128-i]<bgcolor=cDkPurple>;
+  uint start_offset;     // describes the beginning location of the file, but is almost always the end of this struct
+  uint file_length_1;    // usually equals file_length_2 in .DAT
+  uint zero;             // almost always zero?
+  uint file_length_2;    // usually equals file_length_1 in .DAT
+  if( load_data ){
+    ubyte file_data[file_length_2];
+  }
+
+  if(file_length_1 != file_length_2){
+    Printf("file length mismatch: %s\n", path);
+  }
+
+  if(zero != 0){
+    Printf("zero wasn't zero: %s\n", path);
+  }
+  
+  if(head != "XFLE"){
+    Printf("different header: %s\n\tfor: %s", head, path);
+  }
+};
+
+typedef struct XFLE_ARCHIVE( uint load_data ){
+  local uint64 file_count = 0;
+  while( !FEof() ){
+    XFLE_FILE file( load_data )<name=this.path>;
+    file_count++;
+  }
+};
+
+typedef struct CHEAT( local uint64 i, local uint64 data_start ){
+  uint length;
+  FSeek(data_start + 64*i);
+  uint data[length]<comment="These are DOSBOX scancodes.">;
+  ubyte padding[64 - sizeof(data)];
+  FSeek(startof(length)+4);
+};
+
+typedef struct CHEATS( uint64 count ){
+  local uint64 i<hidden=true>;
+  local uint64 data_start<hidden=true>;
+  data_start = FTell()+(4*count);
+  for(i = 0; i < count; i++){
+    CHEAT cheat(i, data_start);
+  }
+};
+
+typedef struct {
+  ubyte data[280];
+} FMVTABLE_ENTRY <size=280>;
+
+typedef struct {
+  // ints[13];
+  FMVTABLE_ENTRY fmv[25];
+} FMVTABLE;
+
+typedef struct {
+  uchar str[15];
+} STRING_ENUM;

@@ -1,0 +1,307 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Script File
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+//   History: 
+//------------------------------------------------
+
+//#include "C:\\git\\harvester-reverse-engineering\\010\\templates\\Harvester_Dat.bt"
+
+//const uint64 FOR_REAL = true;
+
+local string harvester_dir = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Harvester\\";
+//harvester_dir = InputDirectory("Harvester Location",  harvester_dir);
+local string decomp_dir = "C:\\git\\harvester-reverse-engineering\\data\\decomp\\";
+//output_dir = InputDirectory("Harvester Decomp Location", decomp_dir);
+local string source_dir = "C:\\git\\harvester-reverse-engineering\\data\\source\\";
+//source_dir = InputDirectory("Build Output Location", source_dir);
+local string build_output_dir = "C:\\git\\harvester-reverse-engineering\\data\\built\\";
+//build_output_dir = InputDirectory("Build Output Location", build_output_dir);
+local string seven_zip = "C:\\ProgramData\\chocolatey\\bin\\7z.exe";
+//seven_zip = InputOpenFileName("7z.exe Location", "7z.EXE (*.EXE)", seven_zip);
+
+SetWorkingDirectory(build_output_dir);
+
+int Xec(string cmd, string args){
+  local int error_code;
+  Exec(cmd, args, true, error_code);
+  Printf("%i for %s %s\n", error_code, cmd, args);
+  return error_code;
+}
+
+void Harvest_XOR(string filename){
+  local int did_open = FileOpen( filename, false, "Hex", false );
+  if(!did_open){
+    Printf("could not open %s", filename);
+  }
+  LittleEndian();
+  local ubyte cipher = 0xAA;
+  HexOperation( 
+    HEXOP_BINARY_XOR, 
+    0,
+    FileSize(),
+    (ubyte)cipher
+  );
+  local int did_save = FileSave( filename );
+  if(!did_save){
+    Printf("could not save %s", filename);
+  }
+  FileClose();
+}
+
+uint DumpFile(string out_file, uchar bytes[], uint64 len, int file_num){
+  if( file_num == 0 ){ file_num = GetFileNum(); }
+
+  // close the file if it exists
+  local int open_file = FindOpenFile( out_file );
+  if( open_file > -1 ){
+    FileSelect(open_file);
+    FileClose();
+  }
+  FileSelect(file_num);
+
+  // dump it
+  local uint64 write_size = sizeof(bytes);
+  local uchar buffer[] = bytes;
+  //Memcpy(buffer, bytes, write_size);
+  local string folder = FileNameGetPath(out_file);
+  if( !FileExists(folder) ){
+    MakeDir( folder );
+    //Xec("cmd.exe", Str("/C \"mkdir \"%s\"\"", folder));
+  }
+  local uint new_file_index = FileNew("Hex", true);
+  WriteBytes(buffer, 0, write_size);
+  FileSave(out_file);
+  FileClose();
+
+  FileSelect(file_num);
+  return new_file_index;
+}
+
+string Path_To_FunnyPath(string inpath){
+  string drive, path;
+  local int pos = Strchr(inpath, ':');
+  if(pos > 0){
+    drive = SubStr(inpath, 0, 1);
+  } else {
+    drive = '0';
+  }
+  return drive+"\\"+SubStr(inpath, 2+pos, sizeof(inpath)-(2+pos));
+}
+
+void Harvest_Extract_XFLE(string filename){
+  LittleEndian();
+  Xec("cmd.exe", Str("/C \"move \"%s\" \"%s\"\"", filename, filename+".TMP"));
+
+  local int did_open = FileOpen( filename+".TMP", true, "Hex", false );
+  if(!did_open){
+    Printf("could not open %s", filename);
+  }
+  RunTemplate("C:\\git\\harvester-reverse-engineering\\010\\templates\\Harvester_Dat.bt");
+  local uint64 i = 0;
+  local string outer_path;
+  for(i = 0; i < arch.file_count; i++ ){
+    outer_path = filename+"\\"+Path_To_FunnyPath(Str("%s",arch.file[i].path));
+    DumpFile(outer_path, arch.file[i].file_data, arch.file[i].file_length_2, GetFileNum());
+    // Sleep(300);
+  }
+  FileSelect(did_open);
+  FileClose();
+  DeleteFile(filename+".TMP");
+}
+
+// read a file into memory (for writing back out immediately, usually)
+ubyte[] BlackAssOntoGlee(string in_file, uint64 &fsize){
+  FileOpen( in_file, false, "Hex", false);
+  fsize = FileSize();
+  local ubyte buffer[fsize];
+  ReadBytes(buffer, 0, fsize);
+  FileClose();
+  return buffer;
+}
+
+uint64 Write_XFLE(string path, string internal_dir, uint64 pos, int out_file, uint64 &hpos, int out_index){
+  local TFileList fl = FindFiles( path, "*" );
+  local uint64 i;
+  local uint64 lpos = 0;
+  local uint64 fsize = 0;
+  local ubyte buffer[];
+  local ubyte header[148];
+  local int dpos = Strchr(internal_dir, ':');
+  local int str_size = 128;
+  for( i = 0; i < fl.filecount; i++ ){
+    str_size = 128;
+    buffer = BlackAssOntoGlee(path+"\\"+fl.file[i].filename, fsize);
+    FileSelect(out_file);
+    //InsertBytes(pos+lpos, 148);
+    WriteString(pos+lpos, "XFLE"); lpos += 4;
+    if(dpos == 0){
+      WriteUByte(pos+lpos, 0); lpos += 1; str_size -= 1;
+    }
+    WriteString(pos+lpos, internal_dir+"\\"+fl.file[i].filename); lpos += str_size;
+    WriteUInt(pos+lpos, pos+lpos+16); lpos += 4;
+    WriteUInt(pos+lpos, fsize); lpos += 4;
+    WriteUInt(pos+lpos, 0); lpos += 4;
+    WriteUInt(pos+lpos, fsize); lpos += 4;
+    // read the header we just wrote
+    FileSave();
+    ReadBytes(header, pos+lpos-148, 148);
+    FileSelect( out_index );
+    WriteBytes(header, hpos, 148);
+    FileSelect( out_file );
+    WriteBytes(buffer, pos+lpos, fsize); lpos += fsize;
+    hpos += 148;
+  }
+  for( i = 0; i < fl.dircount; i++ ){
+    lpos += Write_XFLE(
+      path+"\\"+fl.dir[i].dirname,
+      internal_dir+"\\"+fl.dir[i].dirname,
+      pos+lpos,
+      out_file,
+      hpos,
+      out_index
+    );
+  }
+  return lpos;
+}
+
+void Build_XFLE(string dir, string out_name, string index_name){
+  local TFileList fl = FindFiles( dir, "*" );
+  local uint64 i;
+  local uint64 pos = 0;
+  local uint64 hpos = 0;
+
+  local string base = FileNameGetBase(dir);
+  local string index_path = FileNameGetPath(out_name)+index_name;
+
+  local int xfle_index = FileNew( "Hex" );
+  FileSave( index_path );
+  local int xfle_arch = FileNew( "Hex" );
+  FileSave( out_name );
+  for( i = 0; i < fl.dircount; i++ ){
+    pos += Write_XFLE(
+      dir+"\\"+fl.dir[i].dirname,
+      Str("%s:", (fl.dir[i].dirname == "0" ? "\0" : fl.dir[i].dirname)),
+      pos,
+      xfle_arch,
+      hpos,
+      xfle_index
+    );
+  }
+  FileSelect(xfle_arch);
+  FileSave( out_name );
+  FileClose();
+  FileSelect(xfle_index);
+  FileSave( index_path );
+  FileClose();
+}
+
+void Harvest_Convert_XOR(string source, string dest, ubyte to_plaintext){
+  FileOpen( source, false, "Hex", false );
+  local ubyte cipher = 0xAA;
+  local ubyte source_bytes[2] = 0xA7;
+              source_bytes[1] = 0xA0;
+  local ubyte   dest_bytes[2] = 0x0D;
+                dest_bytes[1] = 0x0A;
+
+  if(to_plaintext==0){
+    ReplaceAll(dest_bytes, source_bytes);
+  }
+  HexOperation( 
+    HEXOP_BINARY_XOR, 
+    0,
+    FileSize(),
+    (ubyte)cipher
+  );
+  if(to_plaintext){
+    ReplaceAll(source_bytes, dest_bytes);
+  }
+  FileSave(dest);
+  FileClose();
+}
+
+void BuildFromSource(string source, string dest){
+  //Harvest_Convert_XOR(decomp_dir+"HARVEST_CD\\HARVESTER_DISC1\\DIALOGUE.IDX", source_dir+"DIALOGUE.IDX", true);
+  //Harvest_Convert_XOR(decomp_dir+"HARVEST_CD\\HARVESTER_DISC1\\HARVEST.SCR", source_dir+"HARVEST.SCR", true);
+  //Harvest_Convert_XOR(decomp_dir+"HARVEST_CD\\HARVESTER_DISC3\\DIALOGUE.IDX", source_dir+"DIALOGUE.CD3.IDX", true);
+  //Harvest_Convert_XOR(decomp_dir+"HARVEST_CD\\HARVESTER_DISC3\\HARVEST.SCR", source_dir+"HARVEST.CD3.SCR", true);
+  Harvest_Convert_XOR(source+"DIALOGUE.IDX", dest+"DIALOGUE.IDX", false);
+  Harvest_Convert_XOR(source+"HARVEST.SCR", dest+"HARVEST.SCR", false);
+  
+  //Build_XFLE(source+"HARVEST.DAT",  dest+"HARVEST.DAT",  "INDEX.001");
+  //Build_XFLE(source+"SOUND.DAT",    dest+"SOUND.DAT",    "INDEX.002");
+  //Build_XFLE(source+"HARVEST2.DAT", dest+"HARVEST2.DAT", "INDEX.003");
+}
+
+BuildFromSource(source_dir, build_output_dir);
+
+/*
+FX_VOLUME=9
+MUSIC_VOLUME=3
+TEXT=YES
+GORE=YES
+QUICK_TIPS=ON
+SAVE=.\
+VOICE=SOUND\VOICE\
+GAMMA=0
+TOWN=HARVEST.SCR
+CD_ROM=D:\
+DRIVE_1=D:\harvest.dat
+DRIVE_2=D:\sound.dat
+DRIVE_3=C:\HARVEST\harvest2.dat
+*/
+
+// C = C:\Program Files (x86)\Steam\steamapps\common\Harvester = $harvester_dir
+// D = C:\Program Files (x86)\Steam\steamapps\common\Harvester\HARVEST_CD\HARVESTER_DISC1.ISO
+
+
+void DumpRoot(){
+  Xec("Robocopy.exe", "\""+harvester_dir+"\\HARVEST\" \""+output_dir+"HARVEST\" /COPYALL /E");
+  Harvest_Extract_XFLE(output_dir+"HARVEST\\HARVEST2.DAT");
+}
+
+void DumpCD1(){
+  Xec(seven_zip, "x \""+harvester_dir+"HARVEST_CD\\HARVESTER_DISC1.ISO\" -o\""+output_dir+"HARVEST_CD\\HARVESTER_DISC1\"");
+  Harvest_XOR(output_dir+"HARVEST_CD\\HARVESTER_DISC1\\DIALOGUE.IDX");
+  Harvest_XOR(output_dir+"HARVEST_CD\\HARVESTER_DISC1\\HARVEST.SCR");
+  Harvest_Extract_XFLE(output_dir+"HARVEST_CD\\HARVESTER_DISC1\\HARVEST.DAT");
+  Harvest_Extract_XFLE(output_dir+"HARVEST_CD\\HARVESTER_DISC1\\SOUND.DAT");
+  Harvest_Extract_XFLE(output_dir+"HARVEST_CD\\HARVESTER_DISC1\\HARVEST2.DAT");
+}
+
+void DumpCD2(){
+  Xec(seven_zip, "x \""+harvester_dir+"HARVEST_CD\\HARVESTER_DISC2.ISO\" -o\""+output_dir+"HARVEST_CD\\HARVESTER_DISC2\"");
+  Harvest_XOR(output_dir+"HARVEST_CD\\HARVESTER_DISC2\\DIALOGUE.IDX");
+  Harvest_XOR(output_dir+"HARVEST_CD\\HARVESTER_DISC2\\HARVEST.SCR");
+  Harvest_Extract_XFLE(output_dir+"HARVEST_CD\\HARVESTER_DISC2\\HARVEST.DAT");
+  Harvest_Extract_XFLE(output_dir+"HARVEST_CD\\HARVESTER_DISC2\\SOUND.DAT");
+  Harvest_Extract_XFLE(output_dir+"HARVEST_CD\\HARVESTER_DISC2\\HARVEST2.DAT");
+}
+
+void DumpCD3(){
+  Xec(seven_zip, "x \""+harvester_dir+"HARVEST_CD\\HARVESTER_DISC3.ISO\" -o\""+output_dir+"HARVEST_CD\\HARVESTER_DISC3\"");
+  Harvest_XOR(output_dir+"HARVEST_CD\\HARVESTER_DISC3\\DIALOGUE.IDX");
+  Harvest_XOR(output_dir+"HARVEST_CD\\HARVESTER_DISC3\\HARVEST.SCR");
+  Harvest_Extract_XFLE(output_dir+"HARVEST_CD\\HARVESTER_DISC3\\HARVEST.DAT");
+  Harvest_Extract_XFLE(output_dir+"HARVEST_CD\\HARVESTER_DISC3\\SOUND.DAT");
+  Harvest_Extract_XFLE(output_dir+"HARVEST_CD\\HARVESTER_DISC3\\HARVEST2.DAT");
+}
+
+void DumpAll(){
+  DumpRoot();
+  DumpCD1();
+  DumpCD2();
+  DumpCD3();
+}
+
+
+
+//DumpAll();
+//DumpRoot();
+//DumpCD1();
+//DumpCD2();
+//DumpCD3();

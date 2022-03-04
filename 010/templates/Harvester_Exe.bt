@@ -1,0 +1,466 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: HARVEST.EXE
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+#include "Harvester_Types.bt"
+
+typedef struct {
+  ubyte record_type;
+  ushort data_length; // N+1
+  ubyte data[data_length];
+  ubyte checksum;
+  switch(record_type){
+    default:
+      // peepee
+  }
+} SIXTEEN_RELO;
+
+typedef struct {
+  uint VirtualMemorySize;
+  uint RelocationBaseAddress;
+  uint ObjectFlags;
+  uint PageTableIndex;
+  uint NumPageTableEntries;
+  uint Reserved;
+} LE_ObjectTableEntry;
+
+typedef struct {
+  uint PageDataOffset;
+  ushort DataSize;
+  ushort Flags;
+} LE_ObjectPageTableEntry;
+
+
+typedef struct {
+  DWORD TypeID;
+  DWORD NameID;
+  uint  ResourceSize;
+  DWORD Object;
+  uint  Offset;
+} LE_ResourceTableEntry;
+
+typedef struct {
+  ubyte Length;
+  uchar ASCII_String[Length];
+  ushort OrdinalNum;
+} LE_NameTableEntry;
+
+typedef enum<ubyte> {
+  BUNDLE_TYPE_UNUSED_ENTRY                         = 0x00,
+  BUNDLE_TYPE_16BIT_ENTRY                          = 0x01,
+  BUNDLE_TYPE_286_CALL_GATE_ENTRY                  = 0x02,
+  BUNDLE_TYPE_32BIT_ENTRY                          = 0x03,
+  BUNDLE_TYPE_FORWARDER_ENTRY                      = 0x04,
+  BUNDLE_TYPE_PARAMETER_TYPING_INFORMATION_PRESENT = 0x80
+} BUNDLE_TYPE;
+
+typedef struct {
+  ubyte Count;
+  BUNDLE_TYPE Type;
+  switch(Type){
+    case BUNDLE_TYPE_UNUSED_ENTRY:
+      break;
+    case BUNDLE_TYPE_16BIT_ENTRY:
+      DWORD Object;
+      ubyte Flags;
+      DWORD Offset;
+      break;
+    case BUNDLE_TYPE_286_CALL_GATE_ENTRY:
+      DWORD Object;
+      ubyte Flags;
+      DWORD Offset;
+      DWORD CallGate;
+      //
+      break;
+    case BUNDLE_TYPE_32BIT_ENTRY:
+      DWORD Object;
+      ubyte Flags;
+      uint  Offset;
+      break;
+    case BUNDLE_TYPE_FORWARDER_ENTRY:
+      DWORD Reserved;
+      ubyte Flags;
+      DWORD ModuleOrdinalNum;
+      uint  NameOffsetOrImportOrdinalNumber;
+      
+      break;
+  }
+} LE_EntryTableItem;
+
+typedef struct {
+  struct {
+    ubyte unknown                        : 2;
+    ubyte source_list_flag               : 1;
+    ubyte fixup_to_alias_flag            : 1;
+    ubyte source                         : 4;
+  } src;
+  struct {
+    ubyte ordinal_8bit_flag         : 1;
+    ubyte object_number_module_flag : 1;
+    ubyte additive_fixup_flag       : 1;
+    ubyte target_offset_bit_width   : 1;
+    ubyte reserved                  : 1;
+    ubyte additive_fixup_flag       : 1;
+    ubyte reference_type            : 2;
+  } flags;
+  ushort srcoff;
+} LE_FixupRecordTableEntry;
+
+typedef struct {
+  DWORD DirectiveNum;
+  DWORD DataLength;
+  uint  DataOffset;
+} LE_ModuleFormatDirectivesTableEntry;
+
+typedef struct DATA_PAGE(uint64 bytes){
+  ubyte data[bytes];
+} DATA_PAGE;
+
+struct {
+  local uint64 pos = FTell();
+
+  struct {
+    WORD   LESignature                  <comment="IMAGE_DOS_SIGNATURE = 0x4C45",format=hex>;
+    enum <ubyte> {
+      LE_BYTE_ORDER_LE = 0,
+      LE_BYTE_ORDER_BE = 1
+    } ByteOrdering                      <comment="Resolved.">;
+    if( ByteOrdering ){
+      BigEndian();
+    } else {
+      LittleEndian();
+    }
+    ubyte  WordOrdering                 <comment="Resolved: (Ignored)">;
+    // @TODO: items below not fully described
+    uint   FormatLevel                  <comment="Resolved: (Ignored)">; // Initial
+    WORD   CPUType                      <comment="Resolved: (Ignored)">; // 80386+
+    WORD   OSType                       <comment="Resolved: (Ignored)">; // OS/2
+    uint   ModuleVersion                <comment="Resolved: (Ignored)">; // peepee
+    uint   ModuleFlags                  <comment="Resolved: (Ignored)">; // Physical Device Driver module.
+    uint   ModulePages                  <comment="TODO: Use to determine size of page information tables (preload pages, demand load pages, iterated data pages)">;
+    uint   EIPObjectNum                 <comment="Resolved: (Ignored) Not sure if correct.">;
+    uint   EIP                          <comment="Resolved: (Ignored)">;
+    uint   ESPObjectNum                 <comment="Resolved: (Ignored) Not sure if correct.">;
+    uint   ESP                          <comment="Resolved: (Ignored)">;
+    uint   PageSize                     <comment="TODO: use to measure pages somewhere">;
+    uint   PageOffsetShiftOrSizeOfLastPage <comment="TODO: use to measure pages somewhere">;
+    local uint64 size_in_bytes = (PageSize * (ModulePages-1))+PageOffsetShiftOrSizeOfLastPage;
+    uint   FixupSectionSize;
+    uint   FixupSectionChecksum;
+    uint   LoaderSectionSize;
+    uint   LoaderSectionChecksum;
+  
+    uint   ObjectTableOffset;
+    uint   NumObjectsInModule;
+    pos = FTell(); FSeek(ObjectTableOffset);
+    LE_ObjectTableEntry object_table[NumObjectsInModule];
+    FSeek(pos);
+  
+    uint   ObjectPageTableOffset;
+    pos = FTell(); FSeek(ObjectPageTableOffset);
+    LE_ObjectPageTableEntry object_page_table[NumObjectsInModule];
+    FSeek(pos);
+  
+    uint   ObjectIteratedPagesOffset;
+    uint   ResourceTableOffset;
+    uint   NumResourceTableEntries;
+    uint   ResidentNameTableOffset;
+    uint   EntryTableOffset;
+    pos = FTell(); FSeek(EntryTableOffset);
+    LE_EntryTableItem entry_table;
+    FSeek(pos);
+    
+    uint   ModuleDirectivesOffset;
+    uint   NumModuleDirectives;
+    pos = FTell(); FSeek(ModuleDirectivesOffset);
+    LE_ModuleFormatDirectivesTableEntry module_directives_table[NumModuleDirectives];
+    FSeek(pos);
+  
+    uint   FixupPageTableOffset;
+    pos = FTell(); FSeek(FixupPageTableOffset);
+    uint fixup_pages[NumObjectsInModule+1];
+    local uint64 size_of_last_fixups = fixup_pages[NumObjectsInModule] - fixup_pages[NumObjectsInModule-1];
+    FSeek(pos);
+  
+    uint   FixupRecordTableOffset;
+    pos = FTell(); FSeek(FixupPageTableOffset);
+    uint fixup_record_table[1];
+    FSeek(pos);
+
+    uint   ImportModuleTableOffset;
+    uint   NumImportModuleEntries;
+    uint   ImportProcTableOffset;
+    uint   PerPageChecksumOffset;
+    uint   DataPagesOffset;
+
+    uint   NumPreloadPages;
+    uint   NonResourceNameTableOffset;
+    uint   NonResourceNameTableLength;
+    uint   NonResourceNameTableChecksum;
+    uint   AutoDataSegmentObjectNum;
+    uint   DebugInfoOffset;
+    uint   DebugInfoLength;
+    uint   NumInstancePreload;
+    uint   NumInstanceDemand;
+
+    pos = FTell(); FSeek(DataPagesOffset);
+    struct {
+      uint instance_preload_pages[NumInstancePreload];
+      uint instance_demand_pages[NumInstanceDemand];
+      // ubyte paged_data[size_in_bytes];
+
+      local uint64 i = 0;
+      for( i = 0; i < ModulePages; i++ ){
+        DATA_PAGE pages(i+1 == ModulePages ? PageOffsetShiftOrSizeOfLastPage : PageSize );
+      }
+//(PageSize * (ModulePages-1))+PageOffsetShiftOrSizeOfLastPage
+      
+    } DATA_PAGES<bgcolor=cDkYellow>;
+    FSeek(pos);
+
+    uint   Heapsize;
+    uint   Stacksize;
+    ubyte  Reserved[ 20 ];
+
+    
+  
+    //FSeek(EIP);
+    //ubyte todo_eip_objects[EIPObjectNum];
+  
+    //FSeek(ESP);
+    //ubyte todo_esp_objects[ESPObjectNum];
+  
+    FSeek(ModuleDirectivesOffset);
+    ubyte todo_module_directives[NumModuleDirectives];
+  
+    FSeek(ImportModuleTableOffset);
+    ubyte todo_import_modules[NumImportModuleEntries];
+  
+    FSeek(ResourceTableOffset);
+    LE_ResourceTableEntry resource_table[NumResourceTableEntries];
+    
+    FSeek(NonResourceNameTableOffset);
+    LE_NameTableEntry non_resource_name_table[NonResourceNameTableLength];
+  
+    FSeek(DebugInfoOffset);
+    ubyte todo_debug_info[DebugInfoLength];
+  
+    //FSeek(AddressOfRelocationTable);
+    //SIXTEEN_RELO zebra[NumberOfRelocationItems];
+  } LE <bgcolor=cLtBlue>;
+
+
+  FSeek(0x0002C9B0);
+  ubyte looks_like_code;
+
+  typedef struct {
+    string bingus;
+  } BINGLER<name=this.bingus>;
+
+  FSeek(0xAE9B4);
+  struct {
+    BINGLER peeholes[5766]<optimize=false>;
+  } BINGLERS<bgcolor=cDkBlue>;
+
+  //FSeek(0x103914);
+  //FSeek(0x103948);
+  FSeek(0xBF9C4);
+  FMVTABLE fmv_table;
+
+  FSeek(0xC1528);
+  STRING_ENUM book[4];
+
+  //FSeek(0x1065C4 - 0x43F84);
+  
+
+  FSeek(0xC1814);
+  struct {
+    uchar name[32];
+    uint  something;
+  } NPC_NAMES[66]<size=36,name=this.name>;
+
+  FSeek(0xC2180);
+  struct {
+    uchar name[32];
+    uint  something;
+  } FLAGS[27]<size=36,name=this.name>;
+
+  FSeek(0xC2640);
+  CHEATS cheats(8);
+
+  //local uint64 debug_pos = 0x000C57DD;
+  //FSeek(0xC573C);
+  //ubyte debug_info[FileSize()-FTell()]<bgcolor=cDkBlue>;
+  //FSeek(debug_pos);
+  //ubyte debug_info[0x00014F02]<bgcolor=cDkBlue>;
+
+  typedef struct {
+    uint   offset;
+    ushort segment;
+  } WATCOM_ADDR48_PTR;
+
+
+  FSeek(FileSize()-14);
+  struct {
+    ubyte  signature[2];   /* == 0x8386                    */
+    ubyte  exe_major_ver;  /* == 2 or 3                    */
+    ubyte  exe_minor_ver;  /* == 0                         */
+    ubyte  obj_major_ver;  /* == 1                         */
+    ubyte  obj_minor_ver;  /* == 1                         */
+    ushort lang_size;
+    ushort segment_size;
+    uint   debug_size;
+  } WATCOM_MASTER_DEBUG_HEADER<bgcolor=cDkGreen>;
+
+  typedef struct {
+    uint   offset;
+    ushort num_entries;
+  } WATCOM_DEMAND_INFO;
+
+  typedef struct {
+    WATCOM_ADDR48_PTR address; // first part might be backwards?
+    ushort module_index_number;
+    struct {
+      ubyte static : 1;
+      ubyte data   : 1;
+      ubyte code   : 1;
+      ubyte unused : 5;
+    } kind;
+    ubyte  len;
+    uchar name[len];
+  } WATCOM_GLOBAL_HEADER<name=this.name>; // v3
+
+  typedef struct {
+    ushort line_number;
+    uint   code_offset;
+  } WATCOM_LINE_INFO;
+
+  typedef struct {
+    uint             segment;
+    ushort           num;
+    WATCOM_LINE_INFO line[num];
+  } WATCOM_LINE_SEGMENT;
+
+  typedef struct {
+    ushort             language;
+    WATCOM_DEMAND_INFO locals;
+    WATCOM_DEMAND_INFO types;
+    WATCOM_DEMAND_INFO lines;
+    ubyte              len;
+    uchar              name[len];
+  } WATCOM_MODULE_INFO<name=this.name>;
+
+  typedef struct {
+    string language;
+  } WATCOM_LANGUAGE<name=this.language>;
+
+  typedef struct {
+    uint   size;
+    ushort mod_index;
+  } WATCOM_ADDRESS_INFO;
+
+  typedef struct {
+    WATCOM_ADDR48_PTR address;
+    struct {
+      ushort sects   : 15;
+      ushort is_sect :  1;
+    } num;
+    WATCOM_ADDRESS_INFO sects[num.sects];
+  } WATCOM_SEGMENT_INFO;
+
+  FSkip(-WATCOM_MASTER_DEBUG_HEADER.debug_size);
+  struct {
+    local uint64 pos<hidden=true>;
+    pos = FTell();
+    struct {
+      while( FTell() < pos+WATCOM_MASTER_DEBUG_HEADER.lang_size ){
+        WATCOM_LANGUAGE language;
+      }
+    } WATCOM_LANGUAGES;
+    ushort segments[WATCOM_MASTER_DEBUG_HEADER.segment_size/2];
+
+    struct {
+      uint mod_offset;
+      uint gbl_offset;
+      uint addr_offset;
+      uint section_size;
+      ushort section_id;
+
+
+      struct {
+        uint   info_offset; // from debug header
+        ushort entries;
+      } DEMAND_INFO;
+    } WATCOM_SECTION;
+
+    ubyte locals_types_and_line_numbers[(startof(WATCOM_SECTION)+WATCOM_SECTION.mod_offset)-FTell()];
+    // this data represents local+type+line_number sections:
+    // https://github.com/open-watcom/open-watcom-v2/blob/047386398d3b538c8ba9792714e6143b1f44f0ca/bld/watcom/h/wdbginfo.h#L66-L72
+
+    FSeek(startof(WATCOM_SECTION)+WATCOM_SECTION.mod_offset);
+    //ubyte mod[(startof(WATCOM_SECTION)+WATCOM_SECTION.gbl_offset)-FTell()];
+    struct {
+      while(FTell() < startof(WATCOM_SECTION)+WATCOM_SECTION.gbl_offset){
+        WATCOM_MODULE_INFO module_info<optimize=false>;
+      }
+    } WATCOM_MODULE_INFO_SECTION;
+
+    // FSeek(startof(WATCOM_SECTION)+WATCOM_SECTION.gbl_offset);
+    // ubyte gbl[(startof(WATCOM_SECTION)+WATCOM_SECTION.addr_offset)-FTell()];
+
+    FSeek(startof(WATCOM_SECTION)+WATCOM_SECTION.gbl_offset);
+    struct {
+      while(FTell() < startof(WATCOM_SECTION)+WATCOM_SECTION.addr_offset){
+        WATCOM_GLOBAL_HEADER global_header<optimize=false>;
+      }
+    } WATCOM_GLOBAL_SECTION;
+
+    FSeek(startof(WATCOM_SECTION)+WATCOM_SECTION.addr_offset);
+    struct {
+      while(FTell() < startof(WATCOM_MASTER_DEBUG_HEADER)){
+        WATCOM_SEGMENT_INFO address_segment<optimize=false>;
+      }
+      //ubyte addr[WATCOM_SECTION.section_size-WATCOM_SECTION.addr_offset];
+    } WATCOM_ADDRESS_SECTION;
+  } WATCOM_DEBUG <bgcolor=cLtGreen>;
+  /*
+  FSeek(0xC6DEF);
+  typedef struct PATH {
+    ubyte spacing[20];
+    ubyte str_size;
+    uchar name[str_size];
+  };
+
+  struct {
+    PATH path[309]<optimize=false,name=this.name>;
+  } PATHS;
+
+  FSeek(0xC95D3);
+  typedef struct GRUNK {
+    uint no_bitches[3];
+  };
+
+  struct {
+    GRUNK grunk[1]<optimize=false>;    
+  } GRUNKS;
+
+  typedef struct {
+    ushort what[3];
+    string bingus;
+  } BOLDLY<name=Str("(%i, %i, %i) %s", what[0], what[1], what[2], bingus)>;
+
+  FSeek(0xC95D7);
+  struct {
+    BOLDLY boldly[2086]<optimize=false>;
+  } BOLDLIES<bgcolor=cDkRed>;
+  */
+} HARVEST_EXE;

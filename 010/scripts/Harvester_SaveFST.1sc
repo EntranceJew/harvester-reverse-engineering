@@ -22,8 +22,8 @@ const uint INT_MAX = 2147483647;
 
 local int file_num = GetFileNum();
 local string file_name;
-RunTemplate("C:\\projects\\harvest_reverse_engineer\\tools\\templates\\Harvester_FST.bt", false);
-//struct FST_FILE;
+//RunTemplate("C:\\projects\\harvest_reverse_engineer\\tools\\templates\\Harvester_FST.bt", false);
+struct FST_FILE;
 void Save_FST_PCM( FST_FILE &fst ){
     local string out_file_name = Str("%s.s%ibit_le_mono_%iHz.PCM", GetFileName(), fst.sound_bits, fst.sound_rate);
     local uint64 len = fst.vars.pcm_length;
@@ -153,8 +153,8 @@ void OneFrameBingo(){
   for( i = 0; i < fl.filecount; i++ ){
     file_name = Str("%s%s", dir_loc, fl.file[i].filename);
     file_num = FileOpen(file_name, true, "Hex", false);
-    RunTemplate("C:\\projects\\harvest_reverse_engineer\\tools\\templates\\Harvester_FST.bt", false);
-    Save_FST_Frame(fst_file, 0);
+    RunTemplate("C:\\git\\harvester-reverse-engineering\\010\\templates\\Harvester_FST.bt", false);
+    Save_FST_Frames(fst_file);
     FileSelect(file_num);
     FileClose();
     FileSelect(fn);
@@ -162,6 +162,6 @@ void OneFrameBingo(){
 }
 
 //Save_FST_Frame(fst_file, 0);
-Save_FST_Frames(fst_file);
+//Save_FST_Frames(fst_file);
 //Save_FST_PCM(fst_file);
-// OneFrameBingo();
+OneFrameBingo();

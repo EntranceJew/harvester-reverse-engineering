@@ -1,0 +1,16 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: *.PAL
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+#include "..\Harvester_Types.bt"
+
+PAL_FILE pal_file;
